@@ -266,9 +266,31 @@ class BL_dataset(Dataset):
         return self.data[index]
 
 
+class FullDataset(Dataset):
+    def __init__(self, path, flag, type):
+        all_data = pd.read_csv(path)
+        if type == 0:
+            select_data = all_data.iloc[:, :3]
+        elif type == 1:
+            select_data = all_data.iloc[:, 3:]
+        if flag == 'train':
+            self.data = torch.from_numpy(select_data.T.iloc[:, :-131*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
+        elif flag == 'test':
+            self.data = torch.from_numpy(select_data.T.iloc[:, -131*48:].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
 
-train_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'train')
-test_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'test')
+        print("{} data: {} pieces, [{}, {}]".format(flag, self.data.shape[0], self.data.shape[1], self.data.shape[2]))
+
+    def __getitem__(self, index: int):
+        return self.data[index]
+
+    def __len__(self):
+        return self.data.shape[0]
+
+
+train_dataset = FullDataset("../data/full_data.csv", 'train', 0)
+test_dataset = FullDataset("../data/full_data.csv", 'test', 0)
+# train_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'train')
+# test_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'test')
 train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=False)
 test_dataloader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False)
 
