@@ -31,12 +31,12 @@ parser.add_argument('--d_value', type=int, default=4)
 parser.add_argument('--dropout', type=float, default=0.3)
 
 # training parameters
-parser.add_argument('--batch_size', type=float, default=64)
-parser.add_argument('--num_epoch', type=float, default=100)
-parser.add_argument('--num_critic', type=float, default=3)
-parser.add_argument('--gradient_penalty_weight', type=float, default=10)
-parser.add_argument('--element_loss_weight', type=float, default=2)
-parser.add_argument('--learning_rate', type=float, default=0.001)
+parser.add_argument('--batch_size', type=int, default=16)
+parser.add_argument('--num_epoch', type=int, default=100)
+parser.add_argument('--num_critic', type=int, default=3)
+parser.add_argument('--gradient_penalty_weight', type=float, default=10.0)
+parser.add_argument('--element_loss_weight', type=float, default=2.0)
+parser.add_argument('--learning_rate', type=float, default=0.0001)
 parser.add_argument('--beta_1', type=float, default=0.9)
 parser.add_argument('--beta_2', type=float, default=0.999)
 parser.add_argument('--cuda', action='store_true', default=False)
@@ -76,7 +76,7 @@ class EmbeddingPositionEncoding(nn.Module):
     def forward(self, x: torch.Tensor):
         length = x.shape[1]
         x = self._linear(x)
-        x = x + self._position_encoding(length, self._d_model)
+        x = x + self._position_encoding(length, self._d_model).to(device)
         return x
 
     def _position_encoding(self, length: int, d_model: int):
@@ -265,7 +265,6 @@ class BL_dataset(Dataset):
     def __getitem__(self, index: int):
         return self.data[index]
 
-
 class FullDataset(Dataset):
     def __init__(self, path, flag, type):
         all_data = pd.read_csv(path)
@@ -292,7 +291,7 @@ test_dataset = FullDataset("../data/full_data.csv", 'test', 0)
 # train_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'train')
 # test_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'test')
 train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=False)
-test_dataloader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False)
+test_dataloader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
 
 
 
@@ -310,7 +309,10 @@ losses = {
 }
 
 
-
+epoch_loss = {
+    "G": [],
+    "D": []
+}
 for epoch in range(args.num_epoch):
     temp_epoch_model_G = []
     temp_epoch_model_D = []
@@ -325,17 +327,18 @@ for epoch in range(args.num_epoch):
         temp_gradient_norm = []
         # discriminator training
         for i in range(args.num_critic):
-            fake_data = model_G(real_data).to(device)
+            fake_data = model_G(real_data).detach()
 
             # critic score
             real_score = model_D(real_data)
-            fake_score = model_D(fake_data).detach()
+            fake_score = model_D(fake_data)
 
             # gradient penalty
             shape = [real_data.shape[i] if i==0 else 1 for i in range(len(real_data.shape))]
             epsilon = torch.rand(shape).to(device)
             interpolated_data = (epsilon * real_data + (1-epsilon) * fake_data).to(device)
             interpolated_score = model_D(interpolated_data)
+
             # calculate the gradient of interpolated data, not use backward() method
             interpolated_gradient = torch.autograd.grad(outputs=interpolated_score, inputs=interpolated_data, grad_outputs=torch.ones_like(interpolated_score).to(device), retain_graph=True, create_graph=True)[0]
 
@@ -359,7 +362,7 @@ for epoch in range(args.num_epoch):
         temp_epoch_gradient_penalty.append(temp_gradient_penalty)
 
         # generator training
-        fake_data = model_G(real_data).to(device)
+        fake_data = model_G(real_data)
 
         # critic score
         fake_score = model_D(fake_data)
@@ -393,3 +396,26 @@ for epoch in range(args.num_epoch):
     torch.save(model_D.state_dict(), "../log/model/D.pt")
     
     print("Epoch {}/{}, Generator Loss: {}, Discriminator Loss: {}".format(epoch+1, args.num_epoch, np.array(losses["model_G"][-1], dtype=float).mean(), np.array(losses["model_D"][-1], dtype=float).mean()))
+
+    epoch_loss["G"].append(np.array(losses["model_G"][-1], dtype=float).mean())
+    epoch_loss["G"].append(np.array(losses["model_D"][-1], dtype=float).mean())
+
+training_loss = pd.DataFrame(epoch_loss)
+training_loss.to_csv("./training_loss.csv", index=None)
+
+
+
+model_G.eval()
+real_data = []
+generated_data = []
+
+for i in range(len(test_dataset)):
+    data = test_dataset[i]
+    real_data.append(real_data.flatten().tolist())
+
+    data = data.to(device)
+    fake_data = model_G(data).detach()
+    generated_data.append(fake_data.flaten().tolist())
+
+np.save("./real_data.npy", np.array(real_data))
+np.save("./generated_data.npy", np.array(generated_data))
