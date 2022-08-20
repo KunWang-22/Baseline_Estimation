@@ -327,11 +327,11 @@ for epoch in range(args.num_epoch):
         temp_gradient_norm = []
         # discriminator training
         for i in range(args.num_critic):
-            fake_data = model_G(real_data).detach()
+            fake_data = model_G(real_data).to(device)
 
             # critic score
             real_score = model_D(real_data)
-            fake_score = model_D(fake_data)
+            fake_score = model_D(fake_data).detach()
 
             # gradient penalty
             shape = [real_data.shape[i] if i==0 else 1 for i in range(len(real_data.shape))]
@@ -362,7 +362,7 @@ for epoch in range(args.num_epoch):
         temp_epoch_gradient_penalty.append(temp_gradient_penalty)
 
         # generator training
-        fake_data = model_G(real_data)
+        fake_data = model_G(real_data).to(device)
 
         # critic score
         fake_score = model_D(fake_data)
@@ -398,7 +398,7 @@ for epoch in range(args.num_epoch):
     print("Epoch {}/{}, Generator Loss: {}, Discriminator Loss: {}".format(epoch+1, args.num_epoch, np.array(losses["model_G"][-1], dtype=float).mean(), np.array(losses["model_D"][-1], dtype=float).mean()))
 
     epoch_loss["G"].append(np.array(losses["model_G"][-1], dtype=float).mean())
-    epoch_loss["G"].append(np.array(losses["model_D"][-1], dtype=float).mean())
+    epoch_loss["D"].append(np.array(losses["model_D"][-1], dtype=float).mean())
 
 training_loss = pd.DataFrame(epoch_loss)
 training_loss.to_csv("./training_loss.csv", index=None)
@@ -409,13 +409,12 @@ model_G.eval()
 real_data = []
 generated_data = []
 
-for i in range(len(test_dataset)):
-    data = test_dataset[i]
-    real_data.append(real_data.flatten().tolist())
+for _, data in range(len(test_dataloader)):
+    real_data.append(data.flatten().tolist())
 
     data = data.to(device)
-    fake_data = model_G(data).detach()
-    generated_data.append(fake_data.flaten().tolist())
+    fake_data = model_G(data).to(device)
+    generated_data.append(fake_data.cpu().detach().flaten().tolist())
 
 np.save("./real_data.npy", np.array(real_data))
 np.save("./generated_data.npy", np.array(generated_data))
