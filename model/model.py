@@ -31,6 +31,7 @@ parser.add_argument('--d_value', type=int, default=4)
 parser.add_argument('--dropout', type=float, default=0.3)
 
 # training parameters
+parser.add_argument('--file_path', type=str, default="../data/full_data.csv")
 parser.add_argument('--batch_size', type=int, default=16)
 parser.add_argument('--num_epoch', type=int, default=100)
 parser.add_argument('--num_critic', type=int, default=3)
@@ -275,9 +276,9 @@ class FullDataset(Dataset):
         else:
             select_data = all_data
         if flag == 'train':
-            self.data = torch.from_numpy(select_data.T.iloc[:, :-131*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
+            self.data = torch.from_numpy(select_data.T.iloc[:, :-122*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
         elif flag == 'test':
-            self.data = torch.from_numpy(select_data.T.iloc[:, -131*48:].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
+            self.data = torch.from_numpy(select_data.T.iloc[:, -122*48:].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
 
         print("{} data: {} pieces, [{}, {}]".format(flag, self.data.shape[0], self.data.shape[1], self.data.shape[2]))
 
@@ -288,8 +289,8 @@ class FullDataset(Dataset):
         return self.data.shape[0]
 
 
-train_dataset = FullDataset("../data/full_data.csv", 'train', 0)
-test_dataset = FullDataset("../data/full_data.csv", 'test', 0)
+train_dataset = FullDataset(args.file_path, 'train', 2)
+test_dataset = FullDataset(args.file_path, 'test', 2)
 # train_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'train')
 # test_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'test')
 train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=False)
@@ -411,12 +412,12 @@ model_G.eval()
 real_data = []
 generated_data = []
 
-for _, data in test_dataloader:
+for _, data in enumerate(test_dataloader):
     real_data.append(data.flatten().tolist())
 
     data = data.to(device)
     fake_data = model_G(data).to(device)
-    generated_data.append(fake_data.cpu().detach().flaten().tolist())
+    generated_data.append(fake_data.cpu().detach().flatten().tolist())
 
 np.save("../result/real_data.npy", np.array(real_data))
 np.save("../result/generated_data.npy", np.array(generated_data))
