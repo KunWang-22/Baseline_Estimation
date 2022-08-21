@@ -272,6 +272,8 @@ class FullDataset(Dataset):
             select_data = all_data.iloc[:, :3]
         elif type == 1:
             select_data = all_data.iloc[:, 3:]
+        else:
+            select_data = all_data
         if flag == 'train':
             self.data = torch.from_numpy(select_data.T.iloc[:, :-131*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
         elif flag == 'test':
@@ -401,7 +403,7 @@ for epoch in range(args.num_epoch):
     epoch_loss["D"].append(np.array(losses["model_D"][-1], dtype=float).mean())
 
 training_loss = pd.DataFrame(epoch_loss)
-training_loss.to_csv("./training_loss.csv", index=None)
+training_loss.to_csv("../result/training_loss.csv", index=None)
 
 
 
@@ -409,12 +411,12 @@ model_G.eval()
 real_data = []
 generated_data = []
 
-for _, data in range(len(test_dataloader)):
+for _, data in test_dataloader:
     real_data.append(data.flatten().tolist())
 
     data = data.to(device)
     fake_data = model_G(data).to(device)
     generated_data.append(fake_data.cpu().detach().flaten().tolist())
 
-np.save("./real_data.npy", np.array(real_data))
-np.save("./generated_data.npy", np.array(generated_data))
+np.save("../result/real_data.npy", np.array(real_data))
+np.save("../result/generated_data.npy", np.array(generated_data))
