@@ -274,7 +274,7 @@ class FullDataset(Dataset):
         elif type == 1:
             select_data = all_data.iloc[:, 3:]
         else:
-            select_data = all_data
+            select_data = all_data.iloc[:, 1:]
         if flag == 'train':
             self.data = torch.from_numpy(select_data.T.iloc[:, :-122*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
         elif flag == 'test':
@@ -352,7 +352,7 @@ for epoch in range(args.num_epoch):
             temp_gradient_penalty.append(gradient_penalty.item())
 
             # discriminator loss (WGAN-gp)
-            loss_D = fake_score.mean() - real_data.mean() + gradient_penalty
+            loss_D = fake_score.mean() - real_score.mean() + gradient_penalty
             temp_model_D.append(loss_D.item())
 
             # update discriminator
