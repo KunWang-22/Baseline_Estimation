@@ -369,8 +369,9 @@ for epoch in range(args.num_epoch):
     temp_epoch_gradient_penalty = []
 
     for _, data in enumerate(train_dataloader):
-        data, masks = dr_event(data)
+        data, masks = dr_event(data, 0.3)
         real_data = data.to(device)
+        masks = masks.to(device)
 
         temp_model_D = []
         temp_gradient_penalty = []
@@ -400,7 +401,8 @@ for epoch in range(args.num_epoch):
 
             # discriminator loss (WGAN-gp)
             loss_D = fake_score.mean() - real_score.mean() + gradient_penalty
-            temp_model_D.append(loss_D.item())
+            # temp_model_D.append(loss_D.item())
+            temp_model_D.append((real_score.mean() - fake_score.mean()).item())
 
             # update discriminator
             optimizer_D.zero_grad()
@@ -457,14 +459,21 @@ training_loss.to_csv("../result/training_loss.csv", index=None)
 
 model_G.eval()
 real_data = []
+meter_data = []
 generated_data = []
 
 for _, data in enumerate(test_dataloader):
     real_data.append(data.flatten().tolist())
+    
+    data, masks = dr_event(data, 0.3)
+    data = data.to(device)
+    masks = masks.to(device)
+    meter_data.append(data.flatten().tolist())
 
     data = data.to(device)
     fake_data = model_G(data).to(device)
     generated_data.append(fake_data.cpu().detach().flatten().tolist())
 
 np.save("../result/real_data.npy", np.array(real_data))
+np.save("../result/meter_data.npy", np.array(meter_data))
 np.save("../result/generated_data.npy", np.array(generated_data))
