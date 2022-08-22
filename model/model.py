@@ -289,6 +289,52 @@ class FullDataset(Dataset):
         return self.data.shape[0]
 
 
+
+def dr_missing(data, mask):
+    flag = np.random.uniform(0, 1)
+    if 0 <= flag < 0.2:
+        data[10*2+1:12*2+1] = -1.0
+        mask[10*2+1:12*2+1] = 0
+    elif 0.2 <= flag < 0.4:
+        data[14*2+1:17*2+1] = -1.0
+        mask[14*2+1:17*2+1] = 0
+    elif 0.4 <= flag < 0.6:
+        data[14*2+1:17*2+1] = -1.0
+        mask[14*2+1:17*2+1] = 0
+    elif 0.6 <= flag < 0.7:
+        data[10*2+1:12*2+1] = -1.0
+        mask[10*2+1:12*2+1] = 0
+        data[14*2+1:17*2+1] = -1.0
+        mask[14*2+1:17*2+1] = 0
+    elif 0.7 <= flag < 0.8:
+        data[14*2+1:17*2+1] = -1.0
+        mask[14*2+1:17*2+1] = 0
+        data[17*2+1:19*2+1] = -1.0
+        mask[17*2+1:19*2+1] = 0
+    elif 0.8 <= flag < 0.9:
+        data[10*2+1:12*2+1] = -1.0
+        mask[10*2+1:12*2+1] = 0
+        data[17*2+1:19*2+1] = -1.0
+        mask[17*2+1:19*2+1] = 0
+    elif 0.9 <= flag < 1.0:
+        data[10*2+1:12*2+1] = -1.0
+        mask[10*2+1:12*2+1] = 0
+        data[14*2+1:17*2+1] = -1.0
+        mask[14*2+1:17*2+1] = 0
+        data[17*2+1:19*2+1] = -1.0
+        mask[17*2+1:19*2+1] = 0
+    return data, mask
+
+def dr_event(data, dr_rate):
+    masks = torch.ones_like(data)
+    dr_flag = np.random.uniform(0, 1, data.shape[0]) < dr_rate
+    for i, flag in enumerate(dr_flag):
+        if flag:
+            data[i], masks[i] = dr_missing(data[i], masks[i])
+    return data, masks
+
+
+
 train_dataset = FullDataset(args.file_path, 'train', 2)
 test_dataset = FullDataset(args.file_path, 'test', 2)
 # train_dataset = BL_dataset("../data/data_from_2012_10_aggregated_10.csv", 'train')
@@ -323,6 +369,7 @@ for epoch in range(args.num_epoch):
     temp_epoch_gradient_penalty = []
 
     for _, data in enumerate(train_dataloader):
+        data, masks = dr_event(data)
         real_data = data.to(device)
 
         temp_model_D = []
@@ -371,7 +418,7 @@ for epoch in range(args.num_epoch):
         fake_score = model_D(fake_data)
 
         # element-wise difference
-        element_norm = (real_data-fake_data).norm(2, dim=-1).norm(2, dim=-1).mean()
+        element_norm = (real_data*masks - fake_data*masks).norm(2, dim=-1).norm(2, dim=-1).mean()
 
         # generator loss (data recovery)
         loss_G = args.element_loss_weight * element_norm - fake_score.mean()
