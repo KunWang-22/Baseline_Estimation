@@ -186,7 +186,7 @@ class Transformer(nn.Module):
         self._encoder = nn.ModuleList([EncoderLayer(d_model, d_hidden, d_k, d_v, heads, dropout) for _ in range(num_layer)])
         self._decoder = nn.ModuleList([DecoderLayer(d_model, d_hidden, d_k, d_v, heads, dropout) for _ in range(num_layer)])
         self._output_layer = nn.Linear(d_model, d_out)
-        self._activation = nn.Sigmoid()
+        self._activation = nn.ReLU()
 
     def forward(self, x: torch.Tensor):
         encoding = self._encoder_embedding_position_encoding(x)
@@ -325,8 +325,7 @@ def dr_missing(data, mask):
         mask[17*2+1:19*2+1] = 0
     return data, mask
 
-def dr_event(data, dr_rate):
-    masks = torch.ones_like(data)
+def dr_event(data, masks, dr_rate):
     dr_flag = np.random.uniform(0, 1, data.shape[0]) < dr_rate
     for i, flag in enumerate(dr_flag):
         if flag:
@@ -369,8 +368,10 @@ for epoch in range(args.num_epoch):
     temp_epoch_gradient_penalty = []
 
     for _, data in enumerate(train_dataloader):
-        data, masks = dr_event(data, 0.3)
-        real_data = data.to(device)
+        real_data = data.clone().detach().to(device)
+        masks = torch.ones_like(data, dtype=torch.float32)
+        data, masks = dr_event(data, masks, 0.3)
+        data = data.to(device)
         masks = masks.to(device)
 
         temp_model_D = []
@@ -378,7 +379,7 @@ for epoch in range(args.num_epoch):
         temp_gradient_norm = []
         # discriminator training
         for i in range(args.num_critic):
-            fake_data = model_G(real_data).to(device)
+            fake_data = model_G(data).to(device)
 
             # critic score
             real_score = model_D(real_data)
@@ -414,13 +415,13 @@ for epoch in range(args.num_epoch):
         temp_epoch_gradient_penalty.append(temp_gradient_penalty)
 
         # generator training
-        fake_data = model_G(real_data).to(device)
+        fake_data = model_G(data).to(device)
 
         # critic score
         fake_score = model_D(fake_data)
 
         # element-wise difference
-        element_norm = (real_data*masks - fake_data*masks).norm(2, dim=-1).norm(2, dim=-1).mean()
+        element_norm = (data*masks - fake_data*masks).norm(2, dim=-1).norm(2, dim=-1).mean()
 
         # generator loss (data recovery)
         loss_G = args.element_loss_weight * element_norm - fake_score.mean()
@@ -464,13 +465,13 @@ generated_data = []
 
 for _, data in enumerate(test_dataloader):
     real_data.append(data.flatten().tolist())
-    
-    data, masks = dr_event(data, 0.3)
-    data = data.to(device)
+    masks = torch.ones_like(data, dtype=torch.float32)
+
+    data, masks = dr_event(data, masks, 0.3)
     masks = masks.to(device)
     meter_data.append(data.flatten().tolist())
-
     data = data.to(device)
+    
     fake_data = model_G(data).to(device)
     generated_data.append(fake_data.cpu().detach().flatten().tolist())
 
