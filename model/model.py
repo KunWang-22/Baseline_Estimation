@@ -325,11 +325,47 @@ def dr_missing(data, mask):
         mask[17*2+1:19*2+1] = 0
     return data, mask
 
+def dr_missing_new(data, mask):
+    flag = np.random.uniform(0, 1)
+    weight = np.random.uniform(0.5, 1)
+    if 0 <= flag < 0.2:
+        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+        mask[10*2+1:12*2+1] = 0
+    elif 0.2 <= flag < 0.4:
+        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+        mask[14*2+1:17*2+1] = 0
+    elif 0.4 <= flag < 0.6:
+        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+        data[17*2+1:19*2+1] = 0
+    elif 0.6 <= flag < 0.7:
+        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+        mask[10*2+1:12*2+1] = 0
+        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+        mask[14*2+1:17*2+1] = 0
+    elif 0.7 <= flag < 0.8:
+        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+        mask[14*2+1:17*2+1] = 0
+        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+        mask[17*2+1:19*2+1] = 0
+    elif 0.8 <= flag < 0.9:
+        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+        mask[10*2+1:12*2+1] = 0
+        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+        mask[17*2+1:19*2+1] = 0
+    elif 0.9 <= flag < 1.0:
+        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+        mask[10*2+1:12*2+1] = 0
+        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+        mask[14*2+1:17*2+1] = 0
+        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+        mask[17*2+1:19*2+1] = 0
+    return data, mask
+
 def dr_event(data, masks, dr_rate):
     dr_flag = np.random.uniform(0, 1, data.shape[0]) < dr_rate
     for i, flag in enumerate(dr_flag):
         if flag:
-            data[i], masks[i] = dr_missing(data[i], masks[i])
+            data[i], masks[i] = dr_missing_new(data[i], masks[i])
     return data, masks
 
 
