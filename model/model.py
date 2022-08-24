@@ -100,7 +100,7 @@ class MultiHeadAttention(nn.Module):
         # Placeholder
         self._attention_scores = None
 
-    def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask: str = None):
+    def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, missing_mask: torch.Tensor, mask: str = None):
         sequence_length = key.shape[1]
         # For parallel computing, split the featrure dimension and concat into batch dimension. Very ingenious !!!
         # The new batch dimensions is add after the original dimensions. 
@@ -109,6 +109,15 @@ class MultiHeadAttention(nn.Module):
         values = torch.cat( self._W_q(value).chunk(self._heads, dim=-1), dim=0 )
 
         self._attention_scores = torch.bmm(queries, keys.transpose(1, 2)) / np.sqrt(sequence_length)
+
+        # print(self._attention_scores.shape)
+
+        # missing data mask
+        # print(missing_mask.transpose(1, 2).repeat(self._heads, sequence_length, 1).shape)
+        # print(sequence_length)
+        missing_masks = ((1 - missing_mask.transpose(1, 2).repeat(self._heads, sequence_length, 1)).bool()).to(self._attention_scores.device)
+        # input()
+        self._attention_scores = self._attention_scores.masked_fill(missing_masks, float('-inf'))
 
         # For masked attention in decoder
         if mask == 'decoder':
@@ -136,9 +145,9 @@ class EncoderLayer(nn.Module):
         self._add_norm_2 = AddNorm(d_model)
         self._dropout = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, missing_mask: torch.Tensor):
         residual = x
-        x = self._multihead_self_attention(query=x, key=x, value=x)
+        x = self._multihead_self_attention(query=x, key=x, value=x, missing_mask=missing_mask)
         x = self._dropout(x)
         x = self._add_norm_1(x, residual)
 
@@ -160,14 +169,14 @@ class DecoderLayer(nn.Module):
         self._add_norm_3 = AddNorm(d_model)
         self._dropout = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor, encoder_output: torch.Tensor):
+    def forward(self, x: torch.Tensor, encoder_output: torch.Tensor, missing_mask: torch.Tensor):
         residual = x
-        x = self._masked_multihead_self_attention(query=x, key=x, value=x, mask='decoder')
+        x = self._masked_multihead_self_attention(query=x, key=x, value=x, missing_mask=missing_mask, mask='decoder')
         x = self._dropout(x)
         x = self._add_norm_1(x, residual)
 
         residual = x
-        x = self._multihead_attention(query=x, key=encoder_output, value=encoder_output)
+        x = self._multihead_attention(query=x, key=encoder_output, value=encoder_output, missing_mask=missing_mask)
         x = self._dropout(x)
         x = self._add_norm_2(x, residual)
 
@@ -188,16 +197,16 @@ class Transformer(nn.Module):
         self._output_layer = nn.Linear(d_model, d_out)
         self._activation = nn.ReLU()
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, missing_mask: torch.Tensor):
         encoding = self._encoder_embedding_position_encoding(x)
 
         for encoder_layer in self._encoder:
-            encoding = encoder_layer(encoding)
+            encoding = encoder_layer(encoding, missing_mask)
 
         decoding = encoding
 
         for decoder_layer in self._decoder:
-            decoding = decoder_layer(decoding, encoding)
+            decoding = decoder_layer(decoding, encoding, missing_mask)
         
         output = self._activation(self._output_layer(decoding))
         
@@ -209,8 +218,8 @@ class Generator(nn.Module):
 
         self._transformer = Transformer(num_layer, d_in, d_model, d_hidden, d_out, d_k, d_v, heads, dropout)
 
-    def forward(self, x: torch.Tensor):
-        x = self._transformer(x)
+    def forward(self, x: torch.Tensor, missing_mask: torch.Tensor):
+        x = self._transformer(x, missing_mask)
         return x
 
 class Discriminator(nn.Module):
@@ -223,11 +232,11 @@ class Discriminator(nn.Module):
         self._linear_2 = nn.Linear(length, 1)
         self._activation = nn.ReLU()
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, missing_mask: torch.Tensor):
         encoding = self._encoder_embedding_position_encoding(x)
 
         for encoder_layer in self._encoder:
-            encoding = encoder_layer(encoding)
+            encoding = encoder_layer(encoding, missing_mask)
         
         # reduce the dimension of feature
         output = self._activation(self._linear_1(encoding))
@@ -299,8 +308,8 @@ def dr_missing(data, mask):
         data[14*2+1:17*2+1] = -1.0
         mask[14*2+1:17*2+1] = 0
     elif 0.4 <= flag < 0.6:
-        data[14*2+1:17*2+1] = -1.0
-        mask[14*2+1:17*2+1] = 0
+        data[17*2+1:19*2+1] = -1.0
+        mask[17*2+1:19*2+1] = 0
     elif 0.6 <= flag < 0.7:
         data[10*2+1:12*2+1] = -1.0
         mask[10*2+1:12*2+1] = 0
@@ -406,6 +415,7 @@ for epoch in range(args.num_epoch):
     for _, data in enumerate(train_dataloader):
         real_data = data.clone().detach().to(device)
         masks = torch.ones_like(data, dtype=torch.float32)
+        orginal_masks = masks.clone().detach().to(device)
         data, masks = dr_event(data, masks, 0.3)
         data = data.to(device)
         masks = masks.to(device)
@@ -415,17 +425,17 @@ for epoch in range(args.num_epoch):
         temp_gradient_norm = []
         # discriminator training
         for i in range(args.num_critic):
-            fake_data = model_G(data).to(device)
+            fake_data = model_G(data, masks).to(device)
 
             # critic score
-            real_score = model_D(real_data)
-            fake_score = model_D(fake_data).detach()
+            real_score = model_D(real_data, orginal_masks)
+            fake_score = model_D(fake_data, orginal_masks).detach()
 
             # gradient penalty
             shape = [real_data.shape[i] if i==0 else 1 for i in range(len(real_data.shape))]
             epsilon = torch.rand(shape).to(device)
             interpolated_data = (epsilon * real_data + (1-epsilon) * fake_data).to(device)
-            interpolated_score = model_D(interpolated_data)
+            interpolated_score = model_D(interpolated_data, orginal_masks)
 
             # calculate the gradient of interpolated data, not use backward() method
             interpolated_gradient = torch.autograd.grad(outputs=interpolated_score, inputs=interpolated_data, grad_outputs=torch.ones_like(interpolated_score).to(device), retain_graph=True, create_graph=True)[0]
@@ -451,10 +461,10 @@ for epoch in range(args.num_epoch):
         temp_epoch_gradient_penalty.append(temp_gradient_penalty)
 
         # generator training
-        fake_data = model_G(data).to(device)
+        fake_data = model_G(data, masks).to(device)
 
         # critic score
-        fake_score = model_D(fake_data)
+        fake_score = model_D(fake_data, orginal_masks)
 
         # element-wise difference
         element_norm = (data*masks - fake_data*masks).norm(2, dim=-1).norm(2, dim=-1).mean()
@@ -508,7 +518,7 @@ for _, data in enumerate(test_dataloader):
     meter_data.append(data.flatten().tolist())
     data = data.to(device)
     
-    fake_data = model_G(data).to(device)
+    fake_data = model_G(data, masks).to(device)
     generated_data.append(fake_data.cpu().detach().flatten().tolist())
 
 np.save("../result/real_data.npy", np.array(real_data))
