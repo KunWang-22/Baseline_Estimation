@@ -110,12 +110,8 @@ class MultiHeadAttention(nn.Module):
 
         self._attention_scores = torch.bmm(queries, keys.transpose(1, 2)) / np.sqrt(sequence_length)
 
-        # print(self._attention_scores.shape)
-
         # missing data mask
-        # print(missing_mask.transpose(1, 2).repeat(self._heads, sequence_length, 1).shape)
-        # print(sequence_length)
-        missing_masks = ((1 - missing_mask.transpose(1, 2).repeat(self._heads, sequence_length, 1)).bool()).to(self._attention_scores.device)
+        missing_masks = ( ( 1 - missing_mask.repeat(self._heads, 1, sequence_length).transpose(1, 2) ).bool() ).to(self._attention_scores.device)
         # input()
         self._attention_scores = self._attention_scores.masked_fill(missing_masks, float('-inf'))
 
@@ -377,7 +373,11 @@ def dr_event(data, masks, dr_rate):
             data[i], masks[i] = dr_missing_new(data[i], masks[i])
     return data, masks
 
-
+def dr_event_new(data, masks, dr_rate):
+    weight = np.random.uniform(0.5, 1)
+    data[:, 16*2+1:19*2+1] = data[:, 16*2+1:19*2+1] * (1-weight)
+    masks[:, 16*2+1:19*2+1] = 0
+    return data, masks
 
 train_dataset = FullDataset(args.file_path, 'train', 2)
 test_dataset = FullDataset(args.file_path, 'test', 2)
@@ -416,7 +416,7 @@ for epoch in range(args.num_epoch):
         real_data = data.clone().detach().to(device)
         masks = torch.ones_like(data, dtype=torch.float32)
         orginal_masks = masks.clone().detach().to(device)
-        data, masks = dr_event(data, masks, 0.3)
+        data, masks = dr_event_new(data, masks, 0.3)
         data = data.to(device)
         masks = masks.to(device)
 
@@ -513,7 +513,7 @@ for _, data in enumerate(test_dataloader):
     real_data.append(data.flatten().tolist())
     masks = torch.ones_like(data, dtype=torch.float32)
 
-    data, masks = dr_event(data, masks, 0.3)
+    data, masks = dr_event_new(data, masks, 0.3)
     masks = masks.to(device)
     meter_data.append(data.flatten().tolist())
     data = data.to(device)
