@@ -20,12 +20,12 @@ random.seed(seed)
 parser = argparse.ArgumentParser("The hyper-parameters of this project")
 
 # model parameters
-parser.add_argument('--num_layer', type=int, default=3)
-parser.add_argument('--heads', type=int, default=4)
-parser.add_argument('--d_model', type=int, default=16)
+parser.add_argument('--num_layer', type=int, default=6)
+parser.add_argument('--heads', type=int, default=2)
+parser.add_argument('--d_model', type=int, default=8)
 parser.add_argument('--d_in', type=int, default=1)
 parser.add_argument('--d_out', type=int, default=1)
-parser.add_argument('--d_hidden', type=int, default=32)
+parser.add_argument('--d_hidden', type=int, default=16)
 parser.add_argument('--d_key', type=int, default=4)
 parser.add_argument('--d_value', type=int, default=4)
 parser.add_argument('--dropout', type=float, default=0.3)
@@ -467,7 +467,7 @@ for epoch in range(args.num_epoch):
         fake_score = model_D(fake_data, orginal_masks)
 
         # element-wise difference
-        element_norm = (data*masks - fake_data*masks).norm(2, dim=-1).norm(2, dim=-1).mean()
+        element_norm = (real_data - fake_data).norm(2, dim=-1).norm(2, dim=-1).mean()
 
         # generator loss (data recovery)
         loss_G = args.element_loss_weight * element_norm - fake_score.mean()

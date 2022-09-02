@@ -14,11 +14,16 @@ real_data = np.load("../result/real_data.npy")
 meter_data = np.load("../result/meter_data.npy")
 generated_data = np.load("../result/generated_data.npy")
 
-user = 0
-day = 7
-plt.plot(real_data.flatten()[user*122*48:48*(user*122+day)], label='real data')
-plt.plot(generated_data.flatten()[user*122*48:48*(user*122+day)], label='generated data', alpha=0.8)
-plt.plot(meter_data.flatten()[user*122*48:48*(user*122+day)], label='meter data', alpha=0.4)
+user = 3
+# day = 14
+
+plt.plot(real_data[user*122: (user+1)*122, 16*2+1:19*2+1].flatten(), label='real data')
+plt.plot(generated_data[user*122: (user+1)*122, 16*2+1:19*2+1].flatten(), label='generated data')
+plt.plot(meter_data[user*122: (user+1)*122, 16*2+1:19*2+1].flatten(), label='meter data')
+
+# plt.plot(real_data.flatten()[user*122*48:48*(user*122+day)], label='real data')
+# plt.plot(generated_data.flatten()[user*122*48:48*(user*122+day)], label='generated data', alpha=0.8)
+# plt.plot(meter_data.flatten()[user*122*48:48*(user*122+day)], label='meter data', alpha=0.4)
 
 plt.legend()
 
