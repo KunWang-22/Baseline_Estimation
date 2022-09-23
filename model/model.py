@@ -1,4 +1,5 @@
 from ast import arg
+from statistics import mode
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -20,12 +21,12 @@ random.seed(seed)
 parser = argparse.ArgumentParser("The hyper-parameters of this project")
 
 # model parameters
-parser.add_argument('--num_layer', type=int, default=6)
-parser.add_argument('--heads', type=int, default=2)
-parser.add_argument('--d_model', type=int, default=8)
+parser.add_argument('--num_layer', type=int, default=4)
+parser.add_argument('--heads', type=int, default=4)
+parser.add_argument('--d_model', type=int, default=16)
 parser.add_argument('--d_in', type=int, default=1)
 parser.add_argument('--d_out', type=int, default=1)
-parser.add_argument('--d_hidden', type=int, default=16)
+parser.add_argument('--d_hidden', type=int, default=32)
 parser.add_argument('--d_key', type=int, default=4)
 parser.add_argument('--d_value', type=int, default=4)
 parser.add_argument('--dropout', type=float, default=0.3)
@@ -279,11 +280,11 @@ class FullDataset(Dataset):
         elif type == 1:
             select_data = all_data.iloc[:, 3:]
         else:
-            select_data = all_data.iloc[:, 1:]
+            select_data = all_data.iloc[:, 1:11]
         if flag == 'train':
-            self.data = torch.from_numpy(select_data.T.iloc[:, :-122*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
+            self.data = torch.from_numpy(select_data.T.iloc[:, :-90*48].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
         elif flag == 'test':
-            self.data = torch.from_numpy(select_data.T.iloc[:, -122*48:].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
+            self.data = torch.from_numpy(select_data.T.iloc[:, -90*48:].values.reshape(-1, 48)).type(torch.float32).unsqueeze(-1)
 
         print("{} data: {} pieces, [{}, {}]".format(flag, self.data.shape[0], self.data.shape[1], self.data.shape[2]))
 
@@ -333,37 +334,39 @@ def dr_missing(data, mask):
 def dr_missing_new(data, mask):
     flag = np.random.uniform(0, 1)
     weight = np.random.uniform(0.5, 1)
-    if 0 <= flag < 0.2:
-        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
-        mask[10*2+1:12*2+1] = 0
-    elif 0.2 <= flag < 0.4:
-        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
-        mask[14*2+1:17*2+1] = 0
-    elif 0.4 <= flag < 0.6:
-        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
-        data[17*2+1:19*2+1] = 0
-    elif 0.6 <= flag < 0.7:
-        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
-        mask[10*2+1:12*2+1] = 0
-        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
-        mask[14*2+1:17*2+1] = 0
-    elif 0.7 <= flag < 0.8:
-        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
-        mask[14*2+1:17*2+1] = 0
-        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
-        mask[17*2+1:19*2+1] = 0
-    elif 0.8 <= flag < 0.9:
-        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
-        mask[10*2+1:12*2+1] = 0
-        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
-        mask[17*2+1:19*2+1] = 0
-    elif 0.9 <= flag < 1.0:
-        data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
-        mask[10*2+1:12*2+1] = 0
-        data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
-        mask[14*2+1:17*2+1] = 0
-        data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
-        mask[17*2+1:19*2+1] = 0
+    data[16*2+1:19*2+1] = data[16*2+1:19*2+1] * (1-weight)
+    mask[16*2+1:19*2+1] = 0
+    # if 0 <= flag < 0.2:
+    #     data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+    #     mask[10*2+1:12*2+1] = 0
+    # elif 0.2 <= flag < 0.4:
+    #     data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+    #     mask[14*2+1:17*2+1] = 0
+    # elif 0.4 <= flag < 0.6:
+    #     data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+    #     data[17*2+1:19*2+1] = 0
+    # elif 0.6 <= flag < 0.7:
+    #     data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+    #     mask[10*2+1:12*2+1] = 0
+    #     data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+    #     mask[14*2+1:17*2+1] = 0
+    # elif 0.7 <= flag < 0.8:
+    #     data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+    #     mask[14*2+1:17*2+1] = 0
+    #     data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+    #     mask[17*2+1:19*2+1] = 0
+    # elif 0.8 <= flag < 0.9:
+    #     data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+    #     mask[10*2+1:12*2+1] = 0
+    #     data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+    #     mask[17*2+1:19*2+1] = 0
+    # elif 0.9 <= flag < 1.0:
+    #     data[10*2+1:12*2+1] = data[10*2+1:12*2+1] * (1-weight)
+    #     mask[10*2+1:12*2+1] = 0
+    #     data[14*2+1:17*2+1] = data[14*2+1:17*2+1] * (1-weight)
+    #     mask[14*2+1:17*2+1] = 0
+    #     data[17*2+1:19*2+1] = data[17*2+1:19*2+1] * (1-weight)
+    #     mask[17*2+1:19*2+1] = 0
     return data, mask
 
 def dr_event(data, masks, dr_rate):
@@ -391,6 +394,11 @@ test_dataloader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
 model_G = Generator(num_layer=args.num_layer, d_in=args.d_in, d_model=args.d_model, d_hidden=args.d_hidden, d_out=args.d_out, d_k=args.d_key, d_v=args.d_value, heads=args.heads, dropout=args.dropout).to(device)
 model_D = Discriminator(length=48, num_layer=args.num_layer, d_in=args.d_in, d_model=args.d_model, d_hidden=args.d_hidden, d_k=args.d_key, d_v=args.d_value, heads=args.heads, dropout=args.dropout).to(device)
 
+# model_G.load_state_dict(torch.load("../log/model/G.pt"))
+# model_D.load_state_dict(torch.load("../log/model/D.pt"))
+
+# print("Load successfully !")
+
 optimizer_G = torch.optim.Adam(model_G.parameters(), lr=args.learning_rate, betas=(args.beta_1, args.beta_2))
 optimizer_D = torch.optim.Adam(model_D.parameters(), lr=args.learning_rate, betas=(args.beta_1, args.beta_2))
 
@@ -416,7 +424,7 @@ for epoch in range(args.num_epoch):
         real_data = data.clone().detach().to(device)
         masks = torch.ones_like(data, dtype=torch.float32)
         orginal_masks = masks.clone().detach().to(device)
-        data, masks = dr_event_new(data, masks, 0.3)
+        data, masks = dr_event(data, masks, 0.3)
         data = data.to(device)
         masks = masks.to(device)
 
@@ -513,7 +521,7 @@ for _, data in enumerate(test_dataloader):
     real_data.append(data.flatten().tolist())
     masks = torch.ones_like(data, dtype=torch.float32)
 
-    data, masks = dr_event_new(data, masks, 0.3)
+    data, masks = dr_event(data, masks, 0.3)
     masks = masks.to(device)
     meter_data.append(data.flatten().tolist())
     data = data.to(device)
